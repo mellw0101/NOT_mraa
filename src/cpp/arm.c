@@ -1,0 +1,262 @@
+/*
+ * Author: Thomas Ingleby <thomas.c.ingleby@intel.com>
+ * Author: Michael Ring <mail@michael-ring.org>
+ * Copyright (c) 2014 Intel Corporation.
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+#include <stdlib.h>
+#include <string.h>
+
+#include "../include/96boards.h"
+#include "../include/adlink_ipi.h"
+#include "../include/banana.h"
+#include "../include/beaglebone.h"
+#include "../include/de_nano_soc.h"
+#include "../include/mraa_internal.h"
+#include "../include/orange_pi_prime.h"
+#include "../include/phyboard.h"
+#include "../include/radxa_cm3.h"
+#include "../include/radxa_cm5_io.h"
+#include "../include/radxa_e25.h"
+#include "../include/radxa_rock_3a.h"
+#include "../include/radxa_rock_3b.h"
+#include "../include/radxa_rock_3c.h"
+#include "../include/radxa_rock_5a.h"
+#include "../include/radxa_rock_5b.h"
+#include "../include/raspberry_pi.h"
+#include "../include/rockpi4.h"
+#include "../include/siemens/iot2050.h"
+
+mraa_platform_t
+mraa_arm_platform()
+{
+    mraa_platform_t platform_type = MRAA_UNKNOWN_PLATFORM;
+    size_t          len           = 100;
+    char           *line          = malloc(len);
+    FILE           *fh            = fopen("/proc/cpuinfo", "r");
+
+    if (fh != NULL)
+    {
+        while (getline(&line, &len, fh) != -1)
+        {
+            if (strncmp(line, "Hardware", 8) == 0)
+            {
+                if (strstr(line, "BCM2708"))
+                {
+                    platform_type = MRAA_RASPBERRY_PI;
+                }
+                else if (strstr(line, "BCM2709"))
+                {
+                    platform_type = MRAA_RASPBERRY_PI;
+                }
+                else if (strstr(line, "BCM2835"))
+                {
+                    platform_type = MRAA_RASPBERRY_PI;
+                }
+                else if (strstr(line, "Generic AM33XX"))
+                {
+                    if (mraa_file_contains("/proc/device-tree/model", "phyBOARD-WEGA"))
+                    {
+                        platform_type = MRAA_PHYBOARD_WEGA;
+                    }
+                    else
+                    {
+                        platform_type = MRAA_BEAGLEBONE;
+                    }
+                }
+                else if (strstr(line, "HiKey Development Board"))
+                {
+                    platform_type = MRAA_96BOARDS;
+                }
+                else if (strstr(line, "s900"))
+                {
+                    platform_type = MRAA_96BOARDS;
+                }
+                else if (strstr(line, "sun7i"))
+                {
+                    if (mraa_file_contains("/proc/device-tree/model", "Banana Pro"))
+                    {
+                        platform_type = MRAA_BANANA;
+                    }
+                    else if (mraa_file_contains("/proc/device-tree/model", "Banana Pi"))
+                    {
+                        platform_type = MRAA_BANANA;
+                    }
+                    // For old kernels
+                    else if (mraa_file_exist("/sys/class/leds/green:ph24:led1"))
+                    {
+                        platform_type = MRAA_BANANA;
+                    }
+                }
+                else if (strstr(line, "DE0/DE10-Nano-SoC"))
+                {
+                    platform_type = MRAA_DE_NANO_SOC;
+                    // For different kernel version(s) of DE10-Nano
+                }
+                else if (strstr(line, "Altera SOCFPGA"))
+                {
+                    platform_type = MRAA_DE_NANO_SOC;
+                }
+            }
+        }
+        fclose(fh);
+    }
+    free(line);
+
+    /* Get compatible string from Device tree for boards that dont have enough info in /proc/cpuinfo
+     */
+    if (platform_type == MRAA_UNKNOWN_PLATFORM)
+    {
+        if (mraa_file_contains("/proc/device-tree/model", "s900"))
+        {
+            platform_type = MRAA_96BOARDS;
+        }
+        else if (mraa_file_contains("/proc/device-tree/compatible", "qcom,apq8016-sbc"))
+        {
+            platform_type = MRAA_96BOARDS;
+        }
+        else if (mraa_file_contains("/proc/device-tree/compatible", "arrow,apq8096-db820c"))
+        {
+            platform_type = MRAA_96BOARDS;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", "HiKey Development Board"))
+        {
+            platform_type = MRAA_96BOARDS;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", "HiKey960"))
+        {
+            platform_type = MRAA_96BOARDS;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", "ROCK960"))
+        {
+            platform_type = MRAA_96BOARDS;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", "ZynqMP ZCU100 RevC"))
+        {
+            platform_type = MRAA_96BOARDS;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", "Avnet Ultra96 Rev1"))
+        {
+            platform_type = MRAA_96BOARDS;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", PLATFORM_NAME_RADXA_CM3_IO) ||
+                 mraa_file_contains("/proc/device-tree/model", PLATFORM_NAME_RADXA_CM3_IO_2) ||
+                 mraa_file_contains("/proc/device-tree/model", PLATFORM_NAME_RADXA_CM3_RPI_CM4_IO))
+        {
+            platform_type = MRAA_RADXA_CM3;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", PLATFORM_NAME_RADXA_E25))
+        {
+            platform_type = MRAA_RADXA_E25;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", PLATFORM_NAME_RADXA_ROCK_3A))
+        {
+            platform_type = MRAA_RADXA_ROCK_3A;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", PLATFORM_NAME_RADXA_ROCK_3B))
+        {
+            platform_type = MRAA_RADXA_ROCK_3B;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", PLATFORM_NAME_RADXA_ROCK_3C))
+        {
+            platform_type = MRAA_RADXA_ROCK_3C;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", PLATFORM_NAME_RADXA_ROCK_5A))
+        {
+            platform_type = MRAA_RADXA_ROCK_5A;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", PLATFORM_NAME_RADXA_ROCK_5B))
+        {
+            platform_type = MRAA_RADXA_ROCK_5B;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", PLATFORM_NAME_RADXA_CM5_IO))
+        {
+            platform_type = MRAA_RADXA_CM5_IO;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", "ROCK Pi 4") ||
+                 mraa_file_contains("/proc/device-tree/model", "ROCK PI 4") ||
+                 mraa_file_contains("/proc/device-tree/model", "ROCK 4"))
+        {
+            platform_type = MRAA_ROCKPI4;
+        }
+        else if (mraa_file_contains("/proc/device-tree/compatible", "raspberrypi,"))
+        {
+            platform_type = MRAA_RASPBERRY_PI;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", "ADLINK ARM, LEC-PX30"))
+        {
+            platform_type = MRAA_ADLINK_IPI;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", "SIMATIC IOT2050"))
+        {
+            platform_type = MRAA_SIEMENS_IOT2050;
+        }
+        else if (mraa_file_contains("/proc/device-tree/model", "Xunlong Orange Pi Prime"))
+        {
+            platform_type = MRAA_ORANGE_PI_PRIME;
+        }
+    }
+
+    switch (platform_type)
+    {
+        case MRAA_RASPBERRY_PI :
+            plat = mraa_raspberry_pi();
+            break;
+        case MRAA_BEAGLEBONE :
+            plat = mraa_beaglebone();
+            break;
+        case MRAA_PHYBOARD_WEGA :
+            plat = mraa_phyboard();
+            break;
+        case MRAA_BANANA :
+            plat = mraa_banana();
+            break;
+        case MRAA_96BOARDS :
+            plat = mraa_96boards();
+            break;
+        case MRAA_RADXA_CM3 :
+            plat = mraa_radxa_cm3();
+            break;
+        case MRAA_RADXA_E25 :
+            plat = mraa_radxa_e25();
+            break;
+        case MRAA_RADXA_ROCK_3A :
+            plat = mraa_radxa_rock_3a();
+            break;
+        case MRAA_RADXA_ROCK_3B :
+            plat = mraa_radxa_rock_3b();
+            break;
+        case MRAA_RADXA_ROCK_3C :
+            plat = mraa_radxa_rock_3c();
+            break;
+        case MRAA_RADXA_ROCK_5A :
+            plat = mraa_radxa_rock_5a();
+            break;
+        case MRAA_RADXA_ROCK_5B :
+            plat = mraa_radxa_rock_5b();
+            break;
+        case MRAA_RADXA_CM5_IO :
+            plat = mraa_radxa_cm5_io();
+            break;
+        case MRAA_ROCKPI4 :
+            plat = mraa_rockpi4();
+            break;
+        case MRAA_DE_NANO_SOC :
+            plat = mraa_de_nano_soc();
+            break;
+        case MRAA_ADLINK_IPI :
+            plat = mraa_adlink_ipi();
+        case MRAA_SIEMENS_IOT2050 :
+            plat = mraa_siemens_iot2050();
+            break;
+        case MRAA_ORANGE_PI_PRIME :
+            plat = mraa_orange_pi_prime();
+            break;
+        default :
+            plat = NULL;
+            syslog(LOG_ERR, "Unknown Platform, currently not supported by MRAA");
+    }
+    return platform_type;
+}

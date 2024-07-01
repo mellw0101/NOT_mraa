@@ -11,17 +11,18 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <string.h>
-#include <termios.h>
+// #include <errno.h>
 #include <fcntl.h>
-#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <termios.h>
 #include <time.h>
-#include "uart.h"
-#include "uart_ow.h"
-#include "mraa_internal.h"
+#include <unistd.h>
+
+#include "../include/api/uart.h"
+#include "../include/api/uart_ow.h"
+#include "../include/mraa_internal.h"
 
 // low-level read byte
 static mraa_result_t
@@ -32,14 +33,18 @@ _ow_read_byte(mraa_uart_ow_context dev, uint8_t *ch)
     thetime += 5;
 
     int rv;
-    do {
-        rv = mraa_uart_read(dev->uart, (char*) ch, 1);
-    } while (rv == 0 && (time(NULL) < thetime));
+    do
+    {
+        rv = mraa_uart_read(dev->uart, (char *)ch, 1);
+    }
+    while (rv == 0 && (time(NULL) < thetime));
 
-    if (rv == 0) {
+    if (rv == 0)
+    {
         return MRAA_ERROR_NO_DATA_AVAILABLE; // we timed out
     }
-    else {
+    else
+    {
         return MRAA_SUCCESS;
     }
 }
@@ -60,27 +65,35 @@ static mraa_result_t
 _ow_set_speed(mraa_uart_ow_context dev, mraa_boolean_t speed)
 {
 
-    if (!dev) {
+    if (!dev)
+    {
         syslog(LOG_ERR, "uart_ow: set_speed: context is NULL");
         return MRAA_ERROR_INVALID_HANDLE;
     }
 
     static speed_t baud;
-    if (speed) {
+    if (speed)
+    {
         baud = B115200;
     }
-    else {
+    else
+    {
         baud = B9600;
     }
 
     struct termios termio = {
-        .c_cflag = baud | CS8 | CLOCAL | CREAD, .c_iflag = 0, .c_oflag = 0, .c_lflag = NOFLSH, .c_cc = { 0 },
+        .c_cflag = baud | CS8 | CLOCAL | CREAD,
+        .c_iflag = 0,
+        .c_oflag = 0,
+        .c_lflag = NOFLSH,
+        .c_cc    = {0},
     };
 
     tcflush(dev->uart->fd, TCIFLUSH);
 
     // TCSANOW is required
-    if (tcsetattr(dev->uart->fd, TCSANOW, &termio) < 0) {
+    if (tcsetattr(dev->uart->fd, TCSANOW, &termio) < 0)
+    {
         syslog(LOG_ERR, "uart_ow: tcsetattr() failed");
         return MRAA_ERROR_INVALID_RESOURCE;
     }
@@ -96,25 +109,27 @@ _ow_set_speed(mraa_uart_ow_context dev, mraa_boolean_t speed)
 static mraa_boolean_t
 _ow_search(mraa_uart_ow_context dev)
 {
-    int id_bit_number;
-    int last_zero, rom_byte_number, search_result;
-    int id_bit, cmp_id_bit;
+    int           id_bit_number;
+    int           last_zero, rom_byte_number, search_result;
+    int           id_bit, cmp_id_bit;
     unsigned char rom_byte_mask, search_direction;
 
     // initialize for search
-    id_bit_number = 1;
-    last_zero = 0;
+    id_bit_number   = 1;
+    last_zero       = 0;
     rom_byte_number = 0;
-    rom_byte_mask = 1;
-    search_result = 0;
+    rom_byte_mask   = 1;
+    search_result   = 0;
 
     // if the last call was not the last device
-    if (!dev->LastDeviceFlag) {
+    if (!dev->LastDeviceFlag)
+    {
         // 1-Wire reset
-        if (mraa_uart_ow_reset(dev) != MRAA_SUCCESS) {
+        if (mraa_uart_ow_reset(dev) != MRAA_SUCCESS)
+        {
             // reset the search
-            dev->LastDiscrepancy = 0;
-            dev->LastDeviceFlag = 0;
+            dev->LastDiscrepancy       = 0;
+            dev->LastDeviceFlag        = 0;
             dev->LastFamilyDiscrepancy = 0;
             return 0;
         }
@@ -123,41 +138,59 @@ _ow_search(mraa_uart_ow_context dev)
         mraa_uart_ow_write_byte(dev, MRAA_UART_OW_CMD_SEARCH_ROM);
 
         // loop to do the search
-        do {
+        do
+        {
             // read a bit and its complement
-            id_bit = mraa_uart_ow_bit(dev, 1);
+            id_bit     = mraa_uart_ow_bit(dev, 1);
             cmp_id_bit = mraa_uart_ow_bit(dev, 1);
 
             // check for no devices on 1-wire
             if ((id_bit == 1) && (cmp_id_bit == 1))
+            {
                 break;
-            else {
+            }
+            else
+            {
                 // all devices coupled have 0 or 1
                 if (id_bit != cmp_id_bit)
+                {
                     search_direction = id_bit; // bit write value for search
-                else {
+                }
+                else
+                {
                     // if this discrepancy if before the Last Discrepancy
                     // on a previous next then pick the same as last time
                     if (id_bit_number < dev->LastDiscrepancy)
+                    {
                         search_direction = ((dev->ROM_NO[rom_byte_number] & rom_byte_mask) > 0);
+                    }
                     else
+                    {
                         // if equal to last pick 1, if not then pick 0
                         search_direction = (id_bit_number == dev->LastDiscrepancy);
+                    }
                     // if 0 was picked then record its position in LastZero
-                    if (search_direction == 0) {
+                    if (search_direction == 0)
+                    {
                         last_zero = id_bit_number;
                         // check for Last discrepancy in family
                         if (last_zero < 9)
+                        {
                             dev->LastFamilyDiscrepancy = last_zero;
+                        }
                     }
                 }
 
                 // set or clear the bit in the ROM byte rom_byte_number
                 // with mask rom_byte_mask
                 if (search_direction == 1)
+                {
                     dev->ROM_NO[rom_byte_number] |= rom_byte_mask;
+                }
                 else
+                {
                     dev->ROM_NO[rom_byte_number] &= ~rom_byte_mask;
+                }
 
                 // serial number search direction write bit
                 mraa_uart_ow_bit(dev, search_direction);
@@ -168,34 +201,40 @@ _ow_search(mraa_uart_ow_context dev)
                 rom_byte_mask <<= 1;
                 // if the mask is 0 then go to new SerialNum byte
                 // rom_byte_number and reset
-                if (rom_byte_mask == 0) {
+                if (rom_byte_mask == 0)
+                {
                     rom_byte_number++;
                     rom_byte_mask = 1;
                 }
             }
-        } while (rom_byte_number < 8);
+        }
+        while (rom_byte_number < 8);
 
         // loop until through all ROM bytes 0-7
         // if the search was successful then
-        if (id_bit_number >= 65) {
+        if (id_bit_number >= 65)
+        {
             // search successful so set
             // LastDiscrepancy,LastDeviceFlag,search_result
             dev->LastDiscrepancy = last_zero;
 
             // check for last device
             if (dev->LastDiscrepancy == 0)
+            {
                 dev->LastDeviceFlag = 1;
+            }
         }
         search_result = 1;
     }
 
     // if no device found then reset counters so next 'search' will be
     // like a first
-    if (!search_result || !dev->ROM_NO[0]) {
-        dev->LastDiscrepancy = 0;
-        dev->LastDeviceFlag = 0;
+    if (!search_result || !dev->ROM_NO[0])
+    {
+        dev->LastDiscrepancy       = 0;
+        dev->LastDeviceFlag        = 0;
         dev->LastFamilyDiscrepancy = 0;
-        search_result = 0;
+        search_result              = 0;
     }
 
     return search_result;
@@ -210,8 +249,8 @@ static mraa_boolean_t
 _ow_first(mraa_uart_ow_context dev)
 {
     // reset the search state
-    dev->LastDiscrepancy = 0;
-    dev->LastDeviceFlag = 0;
+    dev->LastDiscrepancy       = 0;
+    dev->LastDeviceFlag        = 0;
     dev->LastFamilyDiscrepancy = 0;
 
     return _ow_search(dev);
@@ -236,18 +275,20 @@ mraa_uart_ow_init(int index)
 {
     mraa_uart_ow_context dev = calloc(1, sizeof(struct _mraa_uart_ow));
     if (!dev)
+    {
         return NULL;
+    }
 
     dev->uart = mraa_uart_init(index);
     if (!dev->uart)
-        {
-            free(dev);
-            return NULL;
-        }
-
+    {
+        free(dev);
+        return NULL;
+    }
 
     // now get the fd, and set it up for non-blocking operation
-    if (fcntl(dev->uart->fd, F_SETFL, O_NONBLOCK) == -1) {
+    if (fcntl(dev->uart->fd, F_SETFL, O_NONBLOCK) == -1)
+    {
         syslog(LOG_ERR, "uart_ow: failed to set non-blocking on fd");
         mraa_uart_ow_stop(dev);
         return NULL;
@@ -257,21 +298,24 @@ mraa_uart_ow_init(int index)
 }
 
 mraa_uart_ow_context
-mraa_uart_ow_init_raw(const char* path)
+mraa_uart_ow_init_raw(const char *path)
 {
     mraa_uart_ow_context dev = calloc(1, sizeof(struct _mraa_uart_ow));
     if (!dev)
+    {
         return NULL;
+    }
 
     dev->uart = mraa_uart_init_raw(path);
     if (!dev->uart)
-        {
-            free(dev);
-            return NULL;
-        }
+    {
+        free(dev);
+        return NULL;
+    }
 
     // now get the fd, and set it up for non-blocking operation
-    if (fcntl(dev->uart->fd, F_SETFL, O_NONBLOCK) == -1) {
+    if (fcntl(dev->uart->fd, F_SETFL, O_NONBLOCK) == -1)
+    {
         syslog(LOG_ERR, "uart_ow: failed to set non-blocking on fd");
         mraa_uart_ow_stop(dev);
         return NULL;
@@ -283,12 +327,12 @@ mraa_uart_ow_init_raw(const char* path)
 mraa_result_t
 mraa_uart_ow_stop(mraa_uart_ow_context dev)
 {
-    mraa_result_t rv =  mraa_uart_stop(dev->uart);
+    mraa_result_t rv = mraa_uart_stop(dev->uart);
     free(dev);
     return rv;
 }
 
-const char*
+const char *
 mraa_uart_ow_get_dev_path(mraa_uart_ow_context dev)
 {
     return mraa_uart_get_dev_path(dev->uart);
@@ -297,25 +341,29 @@ mraa_uart_ow_get_dev_path(mraa_uart_ow_context dev)
 int
 mraa_uart_ow_bit(mraa_uart_ow_context dev, uint8_t bit)
 {
-    if (!dev) {
+    if (!dev)
+    {
         syslog(LOG_ERR, "uart_ow: ow_bit: context is NULL");
         return -1;
     }
 
-    int ret = 0;
+    int     ret = 0;
     uint8_t ch;
-    if (bit) {
+    if (bit)
+    {
         ret = _ow_write_byte(dev, 0xff); /* write a 1 bit */
     }
-    else {
+    else
+    {
         ret = _ow_write_byte(dev, 0x00); /* write a 0 bit */
     }
 
     /* return the bit present on the bus (0xff is a '1', anything else
      * (typically 0xfc or 0x00) is a 0
      */
-    if (_ow_read_byte(dev, &ch) != MRAA_SUCCESS || ret == -1) {
-         return -1;
+    if (_ow_read_byte(dev, &ch) != MRAA_SUCCESS || ret == -1)
+    {
+        return -1;
     }
     return (ch == 0xff);
 }
@@ -323,7 +371,8 @@ mraa_uart_ow_bit(mraa_uart_ow_context dev, uint8_t bit)
 int
 mraa_uart_ow_write_byte(mraa_uart_ow_context dev, uint8_t byte)
 {
-    if (!dev) {
+    if (!dev)
+    {
         syslog(LOG_ERR, "uart_ow: write_byte: context is NULL");
         return -1;
     }
@@ -337,14 +386,17 @@ mraa_uart_ow_write_byte(mraa_uart_ow_context dev, uint8_t byte)
      */
 
     uint8_t bit;
-    int i;
-    for (i = 0; i < 8; i++) {
+    int     i;
+    for (i = 0; i < 8; i++)
+    {
         bit = mraa_uart_ow_bit(dev, byte & 0x01);
         /* prep for next bit to send, and clear space for bit read */
         byte >>= 1;
         /* store read bit in the msb */
         if (bit)
+        {
             byte |= 0x80;
+        }
     }
 
     /* return the new byte read */
@@ -354,7 +406,8 @@ mraa_uart_ow_write_byte(mraa_uart_ow_context dev, uint8_t byte)
 int
 mraa_uart_ow_read_byte(mraa_uart_ow_context dev)
 {
-    if (!dev) {
+    if (!dev)
+    {
         syslog(LOG_ERR, "uart_ow: read_byte: context is NULL");
         return -1;
     }
@@ -369,7 +422,8 @@ mraa_uart_ow_read_byte(mraa_uart_ow_context dev)
 mraa_result_t
 mraa_uart_ow_reset(mraa_uart_ow_context dev)
 {
-    if (!dev) {
+    if (!dev)
+    {
         syslog(LOG_ERR, "uart_ow: reset: context is NULL");
         return MRAA_ERROR_INVALID_HANDLE;
     }
@@ -389,39 +443,46 @@ mraa_uart_ow_reset(mraa_uart_ow_context dev)
      * window. If no device is present, the receive value will equal the
      * transmit value. Otherwise the receive value can vary.
      */
-    if (_ow_set_speed(dev, 0) != MRAA_SUCCESS) {
+    if (_ow_set_speed(dev, 0) != MRAA_SUCCESS)
+    {
         return MRAA_ERROR_INVALID_HANDLE;
     }
 
     /* pull the data line low */
     _ow_write_byte(dev, 0xf0);
 
-    if (_ow_read_byte(dev, &rv) != MRAA_SUCCESS) {
+    if (_ow_read_byte(dev, &rv) != MRAA_SUCCESS)
+    {
         return MRAA_ERROR_NO_DATA_AVAILABLE;
     }
 
     /* back up to high speed for normal data transmissions */
-    if (_ow_set_speed(dev, 1) != MRAA_SUCCESS) {
+    if (_ow_set_speed(dev, 1) != MRAA_SUCCESS)
+    {
         return MRAA_ERROR_INVALID_HANDLE;
     }
 
     /* shorted data line */
     if (rv == 0x00)
+    {
         return MRAA_ERROR_UART_OW_SHORTED;
+    }
 
     /* no devices detected (no presence pulse) */
     if (rv == 0xf0)
+    {
         return MRAA_ERROR_UART_OW_NO_DEVICES;
+    }
 
     /* otherwise, at least one device is present */
     return MRAA_SUCCESS;
 }
 
-
 mraa_result_t
-mraa_uart_ow_rom_search(mraa_uart_ow_context dev, mraa_boolean_t start, uint8_t* id)
+mraa_uart_ow_rom_search(mraa_uart_ow_context dev, mraa_boolean_t start, uint8_t *id)
 {
-    if (!dev) {
+    if (!dev)
+    {
         syslog(LOG_ERR, "uart_ow: rom_search: context is NULL");
         return MRAA_ERROR_INVALID_HANDLE;
     }
@@ -429,31 +490,44 @@ mraa_uart_ow_rom_search(mraa_uart_ow_context dev, mraa_boolean_t start, uint8_t*
     // bail if there aren't any devices, or some other error occurs
     mraa_result_t rv;
     if ((rv = mraa_uart_ow_reset(dev)) != MRAA_SUCCESS)
+    {
         return rv;
+    }
 
     mraa_boolean_t result;
 
     // see if we are starting from scratch
     if (start)
+    {
         result = _ow_first(dev);
+    }
     else
+    {
         result = _ow_next(dev);
+    }
 
-    if (result) {
+    if (result)
+    {
         // found one.  Copy into id and return 1
         int i;
         for (i = 0; i < MRAA_UART_OW_ROMCODE_SIZE; i++)
+        {
             id[i] = dev->ROM_NO[i];
+        }
 
         return MRAA_SUCCESS;
-    } else
+    }
+    else
+    {
         return MRAA_ERROR_UART_OW_NO_DEVICES;
+    }
 }
 
 mraa_result_t
-mraa_uart_ow_command(mraa_uart_ow_context dev, uint8_t command, uint8_t* id)
+mraa_uart_ow_command(mraa_uart_ow_context dev, uint8_t command, uint8_t *id)
 {
-    if (!dev) {
+    if (!dev)
+    {
         syslog(LOG_ERR, "uart_ow: ow_command: context is NULL");
         return MRAA_ERROR_INVALID_HANDLE;
     }
@@ -462,17 +536,24 @@ mraa_uart_ow_command(mraa_uart_ow_context dev, uint8_t command, uint8_t* id)
     mraa_result_t rv = mraa_uart_ow_reset(dev);
 
     if (rv != MRAA_SUCCESS)
+    {
         return rv;
+    }
 
-    if (id) {
+    if (id)
+    {
         /* send the match rom command */
         mraa_uart_ow_write_byte(dev, MRAA_UART_OW_CMD_MATCH_ROM);
 
         /* sending to a specific device, so send out the full romcode */
         int i;
         for (i = 0; i < MRAA_UART_OW_ROMCODE_SIZE; i++)
+        {
             mraa_uart_ow_write_byte(dev, id[i]);
-    } else {
+        }
+    }
+    else
+    {
         /* send to all devices (or a single device if it's the only one
          * on the bus)
          */
@@ -485,30 +566,37 @@ mraa_uart_ow_command(mraa_uart_ow_context dev, uint8_t command, uint8_t* id)
 }
 
 uint8_t
-mraa_uart_ow_crc8(uint8_t* buffer, uint16_t length)
+mraa_uart_ow_crc8(uint8_t *buffer, uint16_t length)
 {
     // 0x18 = X ^ 8 + X ^ 5 + X ^ 4 + X ^ 0
     static const uint8_t CRC8POLY = 0x18;
 
-    uint8_t crc = 0x00;
+    uint8_t  crc = 0x00;
     uint16_t loop_count;
-    uint8_t bit_counter;
-    uint8_t data;
-    uint8_t feedback_bit;
+    uint8_t  bit_counter;
+    uint8_t  data;
+    uint8_t  feedback_bit;
 
-    for (loop_count = 0; loop_count != length; loop_count++) {
-        data = buffer[loop_count];
+    for (loop_count = 0; loop_count != length; loop_count++)
+    {
+        data        = buffer[loop_count];
         bit_counter = 8;
-        do {
+        do
+        {
             feedback_bit = (crc ^ data) & 0x01;
             if (feedback_bit == 0x01)
+            {
                 crc = crc ^ CRC8POLY;
+            }
             crc = (crc >> 1) & 0x7F;
             if (feedback_bit == 0x01)
+            {
                 crc = crc | 0x80;
+            }
             data = data >> 1;
             bit_counter--;
-        } while (bit_counter > 0);
+        }
+        while (bit_counter > 0);
     }
 
     return crc;

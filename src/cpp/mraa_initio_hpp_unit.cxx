@@ -5,16 +5,15 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "mraa/initio.hpp"
-#include "gtest/gtest.h"
-#include <iostream>
-#include <exception>
+// #include <exception>
+// #include <iostream>
 
+#include "../include/api/initio.hpp"
+#include "gtest/gtest.h"
 
 /* MRAA IO INIT hpp test fixture */
 class mraa_initio_hpp_unit : public ::testing::Test
-{
-};
+{};
 
 /* Test for an invalid AIO init. */
 TEST_F(mraa_initio_hpp_unit, test_aio_init_invalid)

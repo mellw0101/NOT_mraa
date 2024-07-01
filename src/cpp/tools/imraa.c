@@ -6,46 +6,51 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <error.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include <error.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <json-c/json.h>
 
 #include <argp.h>
 
-#include <mraa_internal.h>
-
-#include <imraa_arduino.h>
-#include <imraa_io.h>
-#include <imraa_lock.h>
+#include "../../include/imraa_arduino.h"
+#include "../../include/imraa_io.h"
+#include "../../include/imraa_lock.h"
+#include "../../include/mraa_internal.h"
 
 #define IMRAA_CONF_FILE "/etc/imraa.conf"
 
 int
-imraa_check_version(struct json_object* jobj)
+imraa_check_version(struct json_object *jobj)
 {
-    struct json_object* imraa_version;
-    if (json_object_object_get_ex(jobj, "version", &imraa_version) == true) {
-        if (json_object_is_type(imraa_version, json_type_string)) {
+    struct json_object *imraa_version;
+    if (json_object_object_get_ex(jobj, "version", &imraa_version) == true)
+    {
+        if (json_object_is_type(imraa_version, json_type_string))
+        {
             printf("imraa version is %s good\n", json_object_get_string(imraa_version));
             // TODO check version?
-        } else {
+        }
+        else
+        {
             fprintf(stderr, "version string incorrectly parsed\n");
             return -1;
         }
-    } else {
+    }
+    else
+    {
         fprintf(stderr, "no version specified\n");
     }
     return 0;
 }
 
-const char *argp_program_version = "imraa version 2.0";
+const char *argp_program_version     = "imraa version 2.0";
 const char *argp_program_bug_address = "http://github.com/intel-iot-devkit/mraa/issues";
 
 static char doc[] = "somestuff";
@@ -53,20 +58,19 @@ static char doc[] = "somestuff";
 static char args_doc[] = "-i imraa.conf";
 
 static struct argp_option options[] = {
-    {"verbose",  'v', 0,      0,  "Produce verbose output" },
-    {"quiet",    'q', 0,      0,  "Don't produce any output" },
-    {"silent",   's', 0,      OPTION_ALIAS },
-    {"force",    'f', 0,      0,  "Force update" },
-    {"arduino",  'a', 0,      0,  "Arduino detection" },
-    {"input",    'i', "FILE", 0,
-     "configuration file" },
-    { 0 }
+    {"verbose", 'v', 0, 0, "Produce verbose output"},
+    {"quiet", 'q', 0, 0, "Don't produce any output"},
+    {"silent", 's', 0, OPTION_ALIAS},
+    {"force", 'f', 0, 0, "Force update"},
+    {"arduino", 'a', 0, 0, "Arduino detection"},
+    {"input", 'i', "FILE", 0, "configuration file"},
+    {0}
 };
 
 struct arguments
 {
     char *args[2];
-    int silent, verbose, force, arduino;
+    int   silent, verbose, force, arduino;
     char *input_file;
 };
 
@@ -78,50 +82,53 @@ parse_opt(int key, char *arg, struct argp_state *state)
      know is a pointer to our arguments structure. */
     struct arguments *arguments = state->input;
 
-    switch(key) {
-        case 'q': case 's':
+    switch (key)
+    {
+        case 'q' :
+        case 's' :
             arguments->silent = 1;
             break;
-        case 'v':
+        case 'v' :
             arguments->verbose = 1;
             break;
-        case 'a':
+        case 'a' :
             arguments->arduino = 1;
             break;
-        case 'f':
+        case 'f' :
             arguments->force = 1;
             break;
-        case 'i':
+        case 'i' :
             arguments->input_file = arg;
             break;
-        case ARGP_KEY_ARG:
+        case ARGP_KEY_ARG :
             break;
-        case ARGP_KEY_END:
+        case ARGP_KEY_END :
             break;
-        default:
+        default :
             return ARGP_ERR_UNKNOWN;
     }
     return 0;
 }
 
-static struct argp argp = { options, parse_opt, args_doc, doc};
+static struct argp argp = {options, parse_opt, args_doc, doc};
 
 int
-main(int argc, char** argv)
+main(int argc, char **argv)
 {
-    char* buffer = NULL;
-    long fsize;
+    char            *buffer = NULL;
+    long             fsize;
     struct arguments arguments;
 
-    arguments.silent = 0;
-    arguments.verbose = 0;
-    arguments.force = 0;
+    arguments.silent     = 0;
+    arguments.verbose    = 0;
+    arguments.force      = 0;
     arguments.input_file = IMRAA_CONF_FILE;
 
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-    FILE* fh = fopen(arguments.input_file, "r");
-    if (fh == NULL) {
+    FILE *fh = fopen(arguments.input_file, "r");
+    if (fh == NULL)
+    {
         fprintf(stderr, "Failed to open configuration file\n");
         return EXIT_FAILURE;
     }
@@ -130,30 +137,39 @@ main(int argc, char** argv)
     fsize = ftell(fh) + 1;
     fseek(fh, 0, SEEK_SET);
     buffer = calloc(fsize, sizeof(char));
-    if (buffer != NULL) {
+    if (buffer != NULL)
+    {
         int result = fread(buffer, sizeof(char), fsize, fh);
-        if (result != (fsize - 1)) {
+        if (result != (fsize - 1))
+        {
             printf("imraa conf reading error\n");
         }
-    } else {
+    }
+    else
+    {
         printf("imraa read_conf buffer can't allocated\n");
         exit(1);
     }
 
     // call reduced imraa_init (not that mraa_init) will already have been called
-    imraa_init();
+    // imraa_init();
 
-    json_object* jobj = json_tokener_parse(buffer);
-    if (imraa_check_version(jobj) != 0) {
+    json_object *jobj = json_tokener_parse(buffer);
+    if (imraa_check_version(jobj) != 0)
+    {
         printf("version of configuration file is not compatible, please check again\n");
-    } else {
+    }
+    else
+    {
         mraa_platform_t type = mraa_get_platform_type();
 
-        if (arguments.arduino) {
+        if (arguments.arduino)
+        {
             imraa_handle_subplatform(jobj, arguments.force);
         }
 
-        if (type == MRAA_NULL_PLATFORM || type == MRAA_UNKNOWN_PLATFORM) {
+        if (type == MRAA_NULL_PLATFORM || type == MRAA_UNKNOWN_PLATFORM)
+        {
             printf("imraa: attempting to do IO pinmuxing on null/unkown platform\n");
         }
         imraa_handle_IO(jobj);

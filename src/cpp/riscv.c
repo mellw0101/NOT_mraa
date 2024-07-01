@@ -9,23 +9,25 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "riscv/visionfive.h"
-#include "mraa_internal.h"
+#include "../include/mraa_internal.h"
+#include "../include/visionfive.h"
 
 mraa_platform_t
 mraa_riscv_platform()
 {
     mraa_platform_t platform_type = MRAA_UNKNOWN_PLATFORM;
-    if (mraa_file_contains("/proc/device-tree/compatible", "visionfive")) {
+    if (mraa_file_contains("/proc/device-tree/compatible", "visionfive"))
+    {
         platform_type = MRAA_VISIONFIVE;
     }
 
-    switch (platform_type) {
-        case MRAA_VISIONFIVE:
+    switch (platform_type)
+    {
+        case MRAA_VISIONFIVE :
             plat = mraa_visionfive();
             break;
 
-        default:
+        default :
             plat = NULL;
             syslog(LOG_ERR, "Unknown Platform, currently not supported by MRAA");
     }

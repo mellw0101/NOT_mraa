@@ -11,6 +11,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include "../include/api/common.h"
+
 // #include "common.h"
 
 const char *radxa_cm3_serialdev[MRAA_RADXA_CM3_UART_COUNT] = {"/dev/ttyS2"};

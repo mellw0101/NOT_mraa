@@ -9,6 +9,7 @@
 #include <string.h>
 #include <syslog.h>
 
+#include "../include/api/firmata.h"
 #include "../include/firmata.h"
 #include "../include/firmata_mraa.h"
 #include "../include/mraa_internal.h"

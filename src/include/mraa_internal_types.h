@@ -80,7 +80,6 @@
 
 #define MRAA_JSONPLAT_ENV_VAR "MRAA_JSON_PLATFORM"
 
-#ifdef FIRMATA
 struct _firmata
 {
     /*@*/
@@ -90,7 +89,6 @@ struct _firmata
     mraa_boolean_t added;        /**< boolean to set if responses already set in devs array */
     /*@}*/
 };
-#endif
 
 struct _gpio_group
 {
